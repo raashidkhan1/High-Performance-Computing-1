@@ -180,7 +180,7 @@ void elimination(int pivot_row, int add_row, double pivot){
       auto value = values[k];
       auto column = col_ind[k];
       dense_values[column] = value;
-        last_index = column;
+      last_index = column;
     }
     
     auto mult = values[pivot_column_in_other_row]/pivot;
@@ -207,6 +207,9 @@ void elimination(int pivot_row, int add_row, double pivot){
     }
     //update row ptr in case row shrunk
     row_ptr_end[add_row] = actual_index-1;
+    
+    //reset dense_values
+    fill_n(dense_values, last_index+1, 0);
 }
 
 // PA = LU
