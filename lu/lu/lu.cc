@@ -46,7 +46,7 @@ int main(int argc, char **argv)
     }
 
   /* For debugging, can be removed when implementation is finished. */
-//  dump_nonzeros(n_rows, cfm.values, cfm.col_ind, cfm.row_ptr_begin, cfm.row_ptr_end);
+//  dump_nonzeros(n_rows, values, col_ind, row_ptr_begin, row_ptr_end);
     
     // initialize permutation matrix
     init_permutation_identity_matrix(n_rows);
@@ -93,11 +93,11 @@ int main(int argc, char **argv)
   double relative_errors[test_vector_count] = {0};
   
   /* Compute relative errors here */
-    relative_errors[0] = computeRelativeErrors(solution_vector_x1, x1);
-    relative_errors[1] = computeRelativeErrors(solution_vector_x2, x2);
-    relative_errors[2] = computeRelativeErrors(solution_vector_x3, x3);
-    relative_errors[3] = computeRelativeErrors(solution_vector_x4, x4);
-    relative_errors[4] = computeRelativeErrors(solution_vector_x5, x5);
+    relative_errors[0] = compute_relative_errors(solution_vector_x1, x1);
+    relative_errors[1] = compute_relative_errors(solution_vector_x2, x2);
+    relative_errors[2] = compute_relative_errors(solution_vector_x3, x3);
+    relative_errors[3] = compute_relative_errors(solution_vector_x4, x4);
+    relative_errors[4] = compute_relative_errors(solution_vector_x5, x5);
     
   std::chrono::duration<double> factorization_elapsed_time = factorization_end_time - factorization_start_time;
   std::chrono::duration<double> solve_elapsed_time = solve_end_time - solve_start_time;

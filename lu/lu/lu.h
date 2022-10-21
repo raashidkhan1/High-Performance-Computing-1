@@ -12,24 +12,26 @@
 
 using namespace std;
 
+// Test Execution parameters
 //const int max_n_elements = 131072; //initial
-const int max_n_elements = 1000000; //1M
+const int max_n_elements = 1000000; //1M prevents segfault
 const int max_n_rows = 16384;
 const int test_vector_count = 5;
 
-const int max_n_cols = max_n_rows; //max colums = max rows ---Square matrix
-
+// Compressed Row Storage Format
 static double values[max_n_elements];
 static int col_ind[max_n_elements];
 static int row_ptr_begin[max_n_rows];
 static int row_ptr_end[max_n_rows];
+int nnz, n_rows, n_cols;
 
+// Utility matrices
 static double pb[max_n_rows];
-static double c[max_n_rows];
+static double y[max_n_rows];
 static int use_index[max_n_rows];
 static double dense_values[max_n_rows];
 static int permutation_index[max_n_rows];
-int nnz, n_rows, n_cols;
+
 
 
 /* Initialization functions **/
@@ -66,23 +68,25 @@ void init_permutation_identity_matrix(int n_rows){
 
 
 /* Utility functions**/
-int numberOfElementsInRow(int row){
-    return row_ptr_end[row] - row_ptr_begin[row]+1;
-};
 
 // compute relative errors
-double computeRelativeErrors(double solution_vector_x[], double x[]){
+double compute_relative_errors(double solution_vector_x[], double x[]){
     
     double x_denominator = 0, x_numerator= 0, error=0;
     for(int i=0;i<n_rows;i++){
-        x_denominator += x[i]*x[i];
+        if(solution_vector_x[i] == x[i]){
+            continue;
+        }
+        x_denominator += solution_vector_x[i]*solution_vector_x[i];
         x_numerator += (x[i]-solution_vector_x[i])*(x[i]-solution_vector_x[i]);
     }
+    // check for valid numerator and denominator to avoid nan error output
     if(x_denominator!=0 && x_numerator!=0){
-        error = sqrt(x_numerator/x_denominator);
-    }
-    if(!(error>0)){
-        return 0;
+        x_numerator = sqrt(x_numerator);
+        x_denominator = sqrt(x_denominator);
+        if(x_numerator>0 && x_denominator>0){
+            error = x_numerator/x_denominator;
+        }
     }
     return error;
 }
@@ -98,15 +102,8 @@ void swap_rows(int pivot_row_index, int swap_row){
     row_ptr_end[swap_row] = row_end;
 }
 
-// mark the row swap in a permutation matrix
-void mark_swap(const int row, const int swap_row){
-    permutation_index[row] = swap_row;
-    permutation_index[swap_row] = row;
-}
-
 // find column with the value
-bool find_column(int search_row,
-                 int search_column, int actual_index){
+bool find_column(int search_row, int search_column, int actual_index){
     
   for(actual_index = row_ptr_begin[search_row];
       actual_index<=row_ptr_end[search_row];
@@ -130,13 +127,14 @@ double partial_pivoting(int pivot_row_index){
     double pivot_value = 0.0;
     
     int actual_index = 0;
+    
     if (find_column(pivot_row_index, pivot_row_index, actual_index)){
       pivot_value = values[actual_index];
     } else {
       pivot_value = 0;
     }
     
-    //find the row with the best pivot value
+    //find the row with the largest pivot value
     for (int change_row=pivot_row_index+1; change_row<n_rows; change_row++){
       for (int actual_index = row_ptr_begin[change_row];
           actual_index <= row_ptr_end[change_row];
@@ -146,7 +144,7 @@ double partial_pivoting(int pivot_row_index){
         double value = values[actual_index];
       
         if (column_index == pivot_row_index){
-
+            // swap if value is greater than current pivot value
           if (abs(value) > abs(pivot_value)){
             pivot_value = value;
             swap_row = change_row;
@@ -157,7 +155,11 @@ double partial_pivoting(int pivot_row_index){
     }
 
     swap_rows(pivot_row_index, swap_row);
-    mark_swap(pivot_row_index, swap_row);
+    
+    // save the permutation in a separate matrix
+    permutation_index[pivot_row_index] = swap_row;
+    permutation_index[swap_row] = pivot_row_index;
+    
     return pivot_value;
 }
 
@@ -167,15 +169,15 @@ void elimination(int pivot_row, int add_row, double pivot){
     int pivot_column_in_other_row = 0;
     
     bool found = find_column(add_row, pivot_column, pivot_column_in_other_row);
-    
+
     if (!found){
-        return; // if no column exists with the pivot, return
+        return; // return if there is no non-zero column below the pivot
     }
 
     int last_index = 0;
     
-    /* Masking operations */
-    //scatter elements
+    /* Apply scattering and gathering */
+    //scatter into dense row
     for(int k=row_ptr_begin[add_row]; k<=row_ptr_end[add_row]; k++){
       auto value = values[k];
       auto column = col_ind[k];
@@ -194,7 +196,7 @@ void elimination(int pivot_row, int add_row, double pivot){
     //set the element in the column below the pivot
     dense_values[pivot_column] = mult;
 
-    //gather into sparse row
+    //gather into compressed sparse row
     int actual_index = row_ptr_begin[add_row];
     for(int column=0; column<n_rows; column++){
       double value = dense_values[column];
@@ -205,16 +207,16 @@ void elimination(int pivot_row, int add_row, double pivot){
       col_ind[actual_index] = column;
       actual_index++;
     }
-    //update row ptr in case row shrunk
+    //update row ptr in case row gets small
     row_ptr_end[add_row] = actual_index-1;
     
-    //reset dense_values
+    //garbage collection: reset dense_values by filling with zeroes
     fill_n(dense_values, last_index+1, 0);
 }
 
 // PA = LU
 void lu_factorization(){
-    auto n_columns = n_rows;
+    auto n_columns = n_rows; //square matrix
     for(int column = 0; column<n_columns; column++){
         double pivot = partial_pivoting(column);
         if (pivot == 0) {
@@ -227,6 +229,7 @@ void lu_factorization(){
     }
 }
 
+// Utility function to permute b vector similar as LU
 void permute_b(double b[], double pb[],
                          int length){
   //copy the array into pb
@@ -262,29 +265,23 @@ void substitution(double b[], double x[]){
 
     // forward subsitution, gets y from Ly=Pb
     for(int row=0; row<n_rows; row++){
-        c[row] = pb[row];
-
-        //iterate over all columns of A
-        //if A[] is zero nothing happens to c =>
-        //we only need to iterate the nonzero elements
+        y[row] = pb[row];
         for(int actual_index=row_ptr_begin[row]; actual_index<=row_ptr_end[row]; actual_index++){
 
             //only iterate till column<row-1
             auto column = col_ind[actual_index];
-            if(column>row-1){break;}
+            if(column>row-1){
+                break;
+            }
 
             auto A = values[actual_index];
-            c[row] -= A * c[column];
+            y[row] -= A * y[column];
         }
     }
 
     //  back subsitution, gets x from Ux=y
     for(int row = n_rows-1; row>=0; row--){
-        x[row] = c[row];
-        //iterate over all columns of A
-        //if A[] is zero nothing happens to c =>
-        //we only need to iterate the nonzero elements
-        //find first non zero element in row of A starting at column row+1
+        x[row] = y[row];
         for (int actual_index=row_ptr_begin[row]; actual_index<=row_ptr_end[row]; actual_index++){
           if (col_ind[actual_index]<row+1){
               continue; // continue if we are not in the next row
