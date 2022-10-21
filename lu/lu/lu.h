@@ -93,13 +93,13 @@ double compute_relative_errors(double solution_vector_x[], double x[]){
 
 // Swap rows
 void swap_rows(int pivot_row_index, int swap_row){
-    auto row_begin = row_ptr_begin[pivot_row_index];
+    auto temp_begin = row_ptr_begin[pivot_row_index];
     row_ptr_begin[pivot_row_index] = row_ptr_begin[swap_row];
-    row_ptr_begin[swap_row] = row_begin;
+    row_ptr_begin[swap_row] = temp_begin;
 
-    auto row_end = row_ptr_end[pivot_row_index];
+    auto temp_end = row_ptr_end[pivot_row_index];
     row_ptr_end[pivot_row_index] = row_ptr_end[swap_row];
-    row_ptr_end[swap_row] = row_end;
+    row_ptr_end[swap_row] = temp_end;
 }
 
 // find column with the value
